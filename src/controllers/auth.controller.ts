@@ -56,3 +56,34 @@ export const login: AsyncRequestHandler = async (req, res, next) => {
     next(error);
   }
 };
+
+
+export const changePasswordByEmail: AsyncRequestHandler = async (req, res, next) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    if (!email || !newPassword) {
+      res.status(400).json({ message: 'E-mail e nova senha são obrigatórios.' });
+      return;
+    }
+
+    const user = await UserModel.findByEmail(email);
+
+    if (!user) {
+      res.status(404).json({ message: 'Não foi possível alterar a senha. Verifique o email ou tente novamente.' });
+      return;
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    const success = await UserModel.updatePasswordByEmail(email, hashedPassword);
+
+    if (success) {
+      res.status(200).json({ message: 'Senha alterada com sucesso!' });
+    } else {
+      res.status(500).json({ message: 'Erro ao alterar a senha. Tente novamente mais tarde.' });
+    }
+  } catch (error) {
+    next(error);
+  }
+};

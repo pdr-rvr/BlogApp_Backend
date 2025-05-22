@@ -257,7 +257,7 @@ export const getNewArticles = async (req: Request, res: Response, next: NextFunc
       FROM articles a
       JOIN users u ON a.author_id = u.id
       ORDER BY a.created_at DESC
-      LIMIT 4
+      LIMIT 6
     `);
     res.json(rows);
   } catch (error) {
