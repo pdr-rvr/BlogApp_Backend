@@ -4,9 +4,13 @@ import * as articlesController from '../controllers/articles.controller';
 
 const router = Router();
 
-router.get('/', articlesController.getAllArticles);
-router.get('/:id', articlesController.getArticleById);
-router.get('/:id/image', articlesController.getArticleImage);
+router.get('/recent', articlesController.getRecentArticles);   
+router.get('/new', articlesController.getNewArticles);     
+
+
+router.get('/:id', articlesController.getArticleById);     
+
+router.get('/', articlesController.getAllArticles);           
 
 router.post(
   '/',
@@ -27,5 +31,7 @@ router.delete(
   authenticate,
   articlesController.deleteArticle
 );
+
+router.get('/:id/image', articlesController.getArticleImage);
 
 export default router;

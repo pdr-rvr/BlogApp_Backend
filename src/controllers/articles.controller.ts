@@ -4,6 +4,8 @@ import ArticleModel from '../models/article.model';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { RowDataPacket } from 'mysql2';
+import pool from '../config/db';
 
 const storage = multer.diskStorage({
   destination: (req: Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
@@ -28,11 +30,19 @@ const storage = multer.diskStorage({
 
 export const upload = multer({ storage });
 
-export const getAllArticles: AsyncRequestHandler = async (req, res, next) => {
+export const getAllArticles = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const articles = await ArticleModel.findAll();
-    res.json(articles);
+    const [rows] = await pool.query<RowDataPacket[]>(`
+      SELECT
+        a.id, a.title, a.content, TO_BASE64(a.featured_image) as featured_image, a.image_mime_type,
+        a.author_id, u.name AS author_name, a.created_at, a.updated_at
+      FROM articles a
+      JOIN users u ON a.author_id = u.id
+      ORDER BY a.created_at DESC
+    `);
+    res.json(rows);
   } catch (error) {
+    console.error('Erro ao buscar todos os artigos:', error);
     next(error);
   }
 };
@@ -150,7 +160,6 @@ export const updateArticle: AsyncRequestHandler = async (req, res, next) => {
   }
 };
 
-
 export const deleteArticle: AsyncRequestHandler = async (req, res, next) => {
   try {
     const articleId = Number(req.params.id);
@@ -188,11 +197,71 @@ export const getArticleImage: AsyncRequestHandler = async (req, res, next) => {
     const article = await ArticleModel.findById(Number(req.params.id));
     if (!article || !article.featured_image || !article.image_mime_type) {
       res.status(404).json({ message: 'Imagem não encontrada' });
-      return;
+      return; // Apenas 'return;'
     }
     res.set('Content-Type', article.image_mime_type);
     res.send(article.featured_image);
   } catch (error) {
+    next(error);
+  }
+};
+
+export const getFeaturedArticle = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(`
+      SELECT
+        a.id, a.title, a.content, TO_BASE64(a.featured_image) as featured_image, a.image_mime_type,
+        a.author_id, u.name AS author_name, a.created_at, a.updated_at
+      FROM articles a
+      JOIN users u ON a.author_id = u.id
+      ORDER BY a.created_at DESC
+      LIMIT 1
+    `);
+
+    if (rows.length === 0) {
+      res.status(404).json({ message: 'Artigo em destaque não encontrado.' });
+      return; // Apenas 'return;'
+    }
+
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Erro ao buscar artigo em destaque:', error);
+    next(error);
+  }
+};
+
+export const getRecentArticles = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(`
+      SELECT
+        a.id, a.title, a.content, TO_BASE64(a.featured_image) as featured_image, a.image_mime_type,
+        a.author_id, u.name AS author_name, a.created_at, a.updated_at
+      FROM articles a
+      JOIN users u ON a.author_id = u.id
+      ORDER BY a.created_at DESC
+      LIMIT 3
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error('Erro ao buscar artigos recentes:', error);
+    next(error);
+  }
+};
+
+export const getNewArticles = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(`
+      SELECT
+        a.id, a.title, a.content, TO_BASE64(a.featured_image) as featured_image, a.image_mime_type,
+        a.author_id, u.name AS author_name, a.created_at, a.updated_at
+      FROM articles a
+      JOIN users u ON a.author_id = u.id
+      ORDER BY a.created_at DESC
+      LIMIT 4
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error('Erro ao buscar novos artigos:', error);
     next(error);
   }
 };
