@@ -197,7 +197,7 @@ export const getArticleImage: AsyncRequestHandler = async (req, res, next) => {
     const article = await ArticleModel.findById(Number(req.params.id));
     if (!article || !article.featured_image || !article.image_mime_type) {
       res.status(404).json({ message: 'Imagem não encontrada' });
-      return; // Apenas 'return;'
+      return;
     }
     res.set('Content-Type', article.image_mime_type);
     res.send(article.featured_image);
@@ -220,7 +220,7 @@ export const getFeaturedArticle = async (req: Request, res: Response, next: Next
 
     if (rows.length === 0) {
       res.status(404).json({ message: 'Artigo em destaque não encontrado.' });
-      return; // Apenas 'return;'
+      return;
     }
 
     res.json(rows[0]);

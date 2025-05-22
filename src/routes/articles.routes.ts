@@ -4,6 +4,7 @@ import * as articlesController from '../controllers/articles.controller';
 
 const router = Router();
 
+router.get('/featured', articlesController.getFeaturedArticle);
 router.get('/recent', articlesController.getRecentArticles);   
 router.get('/new', articlesController.getNewArticles);     
 
