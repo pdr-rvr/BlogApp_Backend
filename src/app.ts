@@ -5,7 +5,7 @@ import authRoutes from './routes/auth.routes';
 import articlesRoutes from './routes/articles.routes';
 import { errorHandler, notFound } from './middlewares/error.middleware';
 
-dotenv.config();
+dotenv.config({ path: process.env.NODE_ENV === 'test' ? '.env.test' : '.env' });
 
 const app = express();
 const port = process.env.PORT || 3000;

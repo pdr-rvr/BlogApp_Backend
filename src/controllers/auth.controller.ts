@@ -1,13 +1,10 @@
 import { AsyncRequestHandler } from '../types/express';
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import UserModel from '../models/user.model';
-import dotenv from 'dotenv';
 
-dotenv.config();
-
-const jwtSecret = process.env.JWT_SECRET;
+const jwtSecret = process.env.JWT_SECRET as Secret;
 if (!jwtSecret) {
   throw new Error('JWT_SECRET is not defined in environment variables');
 }
