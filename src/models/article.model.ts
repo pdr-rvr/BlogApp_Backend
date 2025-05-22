@@ -28,9 +28,9 @@ class ArticleModel {
     return (result as any).insertId;
   }
 
-  static async update(id: number, article: Partial<Article>): Promise<boolean> {
-    const [result] = await pool.query('UPDATE articles SET ? WHERE id = ?', [article, id]);
-    return (result as any).affectedRows > 0;
+  static async update(id: number, article: Omit<Partial<Article>, 'id' | 'created_at' | 'updated_at'>): Promise<boolean> {
+  const [result] = await pool.query('UPDATE articles SET ? WHERE id = ?', [article, id]);
+  return (result as any).affectedRows > 0;
   }
 
   static async delete(id: number): Promise<boolean> {
