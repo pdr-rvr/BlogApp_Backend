@@ -1,3 +1,4 @@
+import { AsyncRequestHandler } from '../types/express';
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -12,42 +13,38 @@ if (!jwtSecret) {
 }
 const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '1d';
 
-export const register = async (req: Request, res: Response) => {
+export const register: AsyncRequestHandler = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
-
     const existingUser = await UserModel.findByEmail(email);
+
     if (existingUser) {
-      return res.status(400).json({ message: 'Email already in use' });
+      res.status(400).json({ message: 'E-mail já em uso' });
+      return;
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    const userId = await UserModel.create({
-      name,
-      email,
-      password: hashedPassword
-    });
-
+    const userId = await UserModel.create({ name, email, password: hashedPassword });
     res.status(201).json({ id: userId, name, email });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
+    next(error);
   }
 };
 
-export const login = async (req: Request, res: Response) => {
+export const login: AsyncRequestHandler = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-
     const user = await UserModel.findByEmail(email);
+
     if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      res.status(401).json({ message: 'Credenciais inválidas' });
+      return;
     }
 
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      res.status(401).json({ message: 'Credenciais inválidas' });
+      return;
     }
 
     const token = jwt.sign(
@@ -57,14 +54,8 @@ export const login = async (req: Request, res: Response) => {
     );
 
     const userInfo = await UserModel.findById(user.id);
-
-    res.json({ 
-      token, 
-      user: userInfo,
-      expiresIn: jwtExpiresIn
-    });
+    res.json({ token, user: userInfo });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
+    next(error);
   }
 };

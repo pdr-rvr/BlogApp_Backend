@@ -1,15 +1,22 @@
-import { Request, Response } from 'express';
+import { AsyncRequestHandler } from '../types/express';
+import { Request, Response, NextFunction } from 'express';
 import ArticleModel from '../models/article.model';
-import multer, { FileFilterCallback } from 'multer';
+import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { Multer } from 'multer';
 
 const storage = multer.diskStorage({
   destination: (req: Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
     const uploadDir = 'uploads/';
     if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir);
+      try {
+        fs.mkdirSync(uploadDir);
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          return cb(err, '');
+        }
+        return cb(new Error('Falha ao criar diretório de upload.'), '');
+      }
     }
     cb(null, uploadDir);
   },
@@ -19,43 +26,58 @@ const storage = multer.diskStorage({
   }
 });
 
-export const upload: Multer = multer({ storage });
+export const upload = multer({ storage });
 
-export const getAllArticles = async (req: Request, res: Response) => {
+export const getAllArticles: AsyncRequestHandler = async (req, res, next) => {
   try {
     const articles = await ArticleModel.findAll();
     res.json(articles);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
+    next(error);
   }
 };
 
-export const getArticleById = async (req: Request, res: Response) => {
+export const getArticleById: AsyncRequestHandler = async (req, res, next) => {
   try {
-    const article = await ArticleModel.findById(Number(req.params.id));
+    const articleId = Number(req.params.id);
+    const article = await ArticleModel.findById(articleId);
     if (!article) {
-      return res.status(404).json({ message: 'Article not found' });
+      res.status(404).json({ message: 'Artigo não encontrado' });
+      return;
     }
     res.json(article);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
+    next(error);
   }
 };
 
-export const createArticle = async (req: Request, res: Response) => {
+export const createArticle: AsyncRequestHandler = async (req, res, next) => {
   try {
     const { title, content } = req.body;
-    const authorId = (req as any).user.id;
+    const authorId = req.user?.id;
+
+    if (!authorId) {
+      res.status(401).json({ message: 'Não autorizado' });
+      return;
+    }
 
     let featuredImage: Buffer | null = null;
     let imageMimeType: string | null = null;
 
     if (req.file) {
-      featuredImage = fs.readFileSync(req.file.path);
-      imageMimeType = req.file.mimetype;
-      fs.unlinkSync(req.file.path);
+      try {
+        featuredImage = fs.readFileSync(req.file.path);
+        imageMimeType = req.file.mimetype;
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (unlinkError) {
+          console.error('Erro ao deletar arquivo temporário:', unlinkError);
+        }
+      } catch (fileError) {
+        console.error('Erro ao processar arquivo de upload:', fileError);
+        next(fileError instanceof Error ? fileError : new Error('Erro ao processar a imagem enviada.'));
+        return;
+      }
     }
 
     const articleId = await ArticleModel.create({
@@ -65,93 +87,112 @@ export const createArticle = async (req: Request, res: Response) => {
       image_mime_type: imageMimeType,
       author_id: authorId
     });
-
-    res.status(201).json({ id: articleId });
+    res.status(201).json({ id: articleId, message: 'Artigo criado com sucesso' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
+    next(error);
   }
 };
 
-export const updateArticle = async (req: Request, res: Response) => {
+export const updateArticle: AsyncRequestHandler = async (req, res, next) => {
   try {
     const { title, content } = req.body;
     const articleId = Number(req.params.id);
-    const authorId = (req as any).user.id;
+    const authorId = req.user?.id;
+
+    if (!authorId) {
+      res.status(401).json({ message: 'Não autorizado' });
+      return;
+    }
 
     const article = await ArticleModel.findById(articleId);
     if (!article) {
-      return res.status(404).json({ message: 'Article not found' });
+      res.status(404).json({ message: 'Artigo não encontrado' });
+      return;
     }
     if (article.author_id !== authorId) {
-      return res.status(403).json({ message: 'Not authorized to update this article' });
+      res.status(403).json({ message: 'Não autorizado a atualizar este artigo' });
+      return;
     }
 
-    let featuredImage: Buffer | null = article.featured_image;
-    let imageMimeType: string | null = article.image_mime_type;
+    let featuredImage = article.featured_image;
+    let imageMimeType = article.image_mime_type;
 
     if (req.file) {
-      featuredImage = fs.readFileSync(req.file.path);
-      imageMimeType = req.file.mimetype;
-      fs.unlinkSync(req.file.path);
+      try {
+        featuredImage = fs.readFileSync(req.file.path);
+        imageMimeType = req.file.mimetype;
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (unlinkError) {
+          console.error('Erro ao deletar arquivo temporário durante atualização:', unlinkError);
+        }
+      } catch (fileError) {
+        console.error('Erro ao processar arquivo de upload durante atualização:', fileError);
+        next(fileError instanceof Error ? fileError : new Error('Erro ao processar a imagem enviada durante a atualização.'));
+        return;
+      }
     }
 
-    const updateData = {
-      title: title || article.title,
-      content: content || article.content,
+    const updated = await ArticleModel.update(articleId, {
+      title,
+      content,
       featured_image: featuredImage,
       image_mime_type: imageMimeType
-    };
-
-    const updated = await ArticleModel.update(articleId, updateData);
-
+    });
     if (!updated) {
-      return res.status(404).json({ message: 'Article not found' });
+      res.status(404).json({ message: 'Artigo não encontrado ou nenhuma alteração feita' });
+      return;
     }
 
-    res.json({ message: 'Article updated successfully' });
+    res.json({ message: 'Artigo atualizado com sucesso' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
+    next(error);
   }
 };
 
-export const deleteArticle = async (req: Request, res: Response) => {
+
+export const deleteArticle: AsyncRequestHandler = async (req, res, next) => {
   try {
     const articleId = Number(req.params.id);
-    const authorId = (req as any).user.id;
+    const authorId = req.user?.id;
+
+    if (!authorId) {
+      res.status(401).json({ message: 'Não autorizado' });
+      return;
+    }
 
     const article = await ArticleModel.findById(articleId);
     if (!article) {
-      return res.status(404).json({ message: 'Article not found' });
+      res.status(404).json({ message: 'Artigo não encontrado' });
+      return;
     }
     if (article.author_id !== authorId) {
-      return res.status(403).json({ message: 'Not authorized to delete this article' });
+      res.status(403).json({ message: 'Não autorizado a deletar este artigo' });
+      return;
     }
 
     const deleted = await ArticleModel.delete(articleId);
     if (!deleted) {
-      return res.status(404).json({ message: 'Article not found' });
+      res.status(404).json({ message: 'Artigo não encontrado' });
+      return;
     }
 
-    res.json({ message: 'Article deleted successfully' });
+    res.json({ message: 'Artigo deletado com sucesso' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
+    next(error);
   }
 };
 
-export const getArticleImage = async (req: Request, res: Response) => {
+export const getArticleImage: AsyncRequestHandler = async (req, res, next) => {
   try {
     const article = await ArticleModel.findById(Number(req.params.id));
     if (!article || !article.featured_image || !article.image_mime_type) {
-      return res.status(404).json({ message: 'Image not found' });
+      res.status(404).json({ message: 'Imagem não encontrada' });
+      return;
     }
-
     res.set('Content-Type', article.image_mime_type);
     res.send(article.featured_image);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal server error' });
+    next(error);
   }
 };
