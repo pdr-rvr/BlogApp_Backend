@@ -4,7 +4,10 @@
   "description": "Aplicação de um blog feita para o case de estagio na MindGroup",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node dist/app.js",
+    "dev": "nodemon src/app.ts",
+    "build": "tsc"
   },
   "repository": {
     "type": "git",
